@@ -6,7 +6,7 @@ nav_order: 1
 
 ---
 
-# L01 Introduction and Examples
+# Lecture 1 - Introduction and Examples
 
 **简介和示例**
 
