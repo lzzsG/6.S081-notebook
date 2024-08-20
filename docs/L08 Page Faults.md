@@ -176,6 +176,8 @@ RISC-V 的 `SCAUSE` 寄存器可以存储触发异常的具体原因。不同的
 ### 原始代码分析
 
 ```c
+// kernel/sysproc.c
+
 uint64 sys_sbrk(void)
 {
     int addr;
@@ -188,7 +190,6 @@ uint64 sys_sbrk(void)
         return -1;
     return addr;
 }
-
 ```
 
 在原始代码中：
@@ -230,7 +231,7 @@ uint64 sys_sbrk(void)
 
 在启动 `XV6` 并执行命令 `echo hi` 后，会引发一个 `Page Fault`。这发生在 `Shell` 中 fork 了一个子进程，然后该子进程通过 `exec` 执行 `echo` 程序。在这个过程中，`Shell` 试图申请一些内存，因此调用了我们修改过的 `sys_sbrk` 函数。然而，由于我们没有实际分配物理内存，当 `Shell` 尝试访问这块新“分配”的内存时，触发了 `Page Fault`。
 
-![image-20240820150051267](./assets/image-20240820150051267.png)
+![image-20240820150051267]({{ site.baseurl }}/docs/assets/image-20240820150051267.png)
 
 观察 `XV6` 输出的调试信息，可以帮助我们理解 `Page Fault` 的原因：
 
@@ -394,3 +395,191 @@ malloc(uint nbytes)
 > > > >
 > > > > 这个内存分配器基于空闲链表管理内存。`Header` 结构体用来表示每个内存块的元数据（包括大小和下一个块的指针），通过将空闲块链接成链表，内存管理器可以高效地分配和释放内存。在释放内存时，通过合并相邻的空闲块，可以减少内存碎片，提高内存利用率。
 
+## 智能处理 Page Fault
+
+在操作系统的设计中，智能处理 Page Fault 可以显著提升内存管理的效率。下面我们简单分析如何通过 XV6 的代码来实现这一点，特别是在 `usertrap` 函数中进行的修改。在 lazy lab 中还需要完成更多的工作。
+
+### 检查 Page Fault 的原因
+
+```c
+// kernel/trap.c
+...
+// handle an interrupt, exception, or system call from user space.
+// called from trampoline.S
+//
+void
+usertrap(void)
+{
+  int which_dev = 0;
+
+  if((r_sstatus() & SSTATUS_SPP) != 0)
+    panic("usertrap: not from user mode");
+
+  // send interrupts and exceptions to kerneltrap(),
+  // since we're now in the kernel.
+  w_stvec((uint64)kernelvec);
+
+  struct proc *p = myproc();
+  
+  // save user program counter.
+  p->trapframe->epc = r_sepc();
+  
+  if(r_scause() == 8){
+    // system call
+
+    if(killed(p))
+      exit(-1);
+
+    // sepc points to the ecall instruction,
+    // but we want to return to the next instruction.
+    p->trapframe->epc += 4;
+
+    // an interrupt will change sepc, scause, and sstatus,
+    // so enable only now that we're done with those registers.
+    intr_on();
+
+    syscall();
+  } else if((which_dev = devintr()) != 0){
+    // ok
+  } else {
+    printf("usertrap(): unexpected scause 0x%lx pid=%d\n", r_scause(), p->pid);
+    printf("            sepc=0x%lx stval=0x%lx\n", r_sepc(), r_stval());
+    setkilled(p);
+  }
+
+  if(killed(p))
+    exit(-1);
+
+  // give up the CPU if this is a timer interrupt.
+  if(which_dev == 2)
+    yield();
+
+  usertrapret();
+}
+...
+```
+
+在 `usertrap` 函数中，我们首先需要根据 `SCAUSE` 寄存器的值来判断触发 Page Fault 的原因。在 L06 中，我们遇到的情况有以下几种：
+
+- **普通系统调用**：`SCAUSE == 8` 时，表示这是一个系统调用触发的 Trap。
+
+- **设备中断**：如果不是系统调用，我们会检查是否是设备中断，通过 `devintr()` 函数来处理。
+- 两个条件都不满足，打印一些信息并杀掉进程。
+
+现在我们需要增加一个情况：
+
+- **Page Fault**：如果 `SCAUSE == 15`，表示这是由于 Store 操作引发的 Page Fault。
+
+在处理 Page Fault 时，我们需要首先确认虚拟地址 `STVAL` 是否在进程的合法地址范围内。一种可能的处理方式是，我们可以检查 `p->sz` 是否大于 `STVAL` 中保存的虚拟地址。如果 `p->sz` 比虚拟地址大，说明这个虚拟地址是在进程的地址空间内，但尚未实际分配物理内存。
+
+### Page Fault 的处理流程
+
+这里只以演示为目的简单的处理一下，在 lazy lab 中需要完成更多的工作。
+
+如果确定这是一个合法的 Page Fault，我们需要进行如下操作：
+
+1. **调试信息输出**：打印当前 Page Fault 的虚拟地址，以便调试和验证。
+2. **物理内存分配**：调用 `kalloc()` 为进程分配一个新的物理页面。如果分配失败（`ka == 0`），则说明系统内存耗尽，必须杀掉进程。
+3. **内存初始化**：如果分配成功，将物理页面初始化为全零，以确保内存安全和一致性。
+4. **映射虚拟地址**：将物理页面与引发 Page Fault 的虚拟地址关联。为了确保对齐，我们会使用 `PGROUNDDOWN(va)` 将虚拟地址向下对齐到页面边界，然后使用 `mappages()` 函数将虚拟地址和物理页面映射到进程的页表中，并设置权限标志位（`PTE_W | PTE_U | PTE_R`）。
+
+```c
+} else if (r_scause() == 15) {
+    uint64 va = r_stval();
+    printf("page fault %p\n", va);
+    uint64 ka = (uint64) kalloc();
+    if (ka == 0) {
+        p->killed = 1;
+    } else {
+        memset((void *) ka, 0, PGSIZE);
+        va = PGROUNDDOWN(va);
+        if (mappages(p->pagetable, va, PGSIZE, ka, PTE_W|PTE_U|PTE_R) != 0) {
+            kfree((void *)ka);
+            p->killed = 1;
+        }
+    }
+}
+```
+
+在这个片段中，如果 `r_scause()` 为 15，表示这是一个 Page Fault（通常是由于访问未映射的内存地址引发的）。
+
+- `r_stval()` 返回引发 Page Fault 的虚拟地址，并将其存储在 `va` 变量中。
+- 打印调试信息，输出引发 Page Fault 的虚拟地址。
+- 尝试使用 `kalloc()` 函数分配一个新的物理页面。如果分配失败（返回值为 `0`），则标记当前进程为需要终止 (`p->killed = 1`)。
+- 如果分配成功，将分配的页面初始化为全零 (`memset`)。
+- 使用 `PGROUNDDOWN()` 函数将虚拟地址 `va` 向下取整到页面边界，确保其对齐。
+- 尝试将新的物理页面映射到用户空间的虚拟地址。如果 `mappages()` 函数调用失败，释放刚才分配的物理页面，并标记当前进程为需要终止。
+
+### 出现双重 Page Fault 的问题
+
+![image-20240820203834580]({{ site.baseurl }}/docs/assets/image-20240820203834580.png)
+
+再次执行`echo hi`并没有正常工作。在处理完一个 Page Fault 后，我们遇到另一个 Page Fault。在图中，第二个 Page Fault 地址为 `0x13f48`，`uvmunmap`在报错。这是因为未分配的虚拟地址空间尝试被释放，即使这些地址空间还没有对应的物理内存。通常，`uvmunmap` 函数会尝试解除这些映射，这时会检测到没有物理页面对应的情况，而产生错误信息。
+
+解决这一问题需要在代码中进行进一步的检查和验证，确保未分配的内存空间不会被误操作。
+
+## 处理 `uvmunmap` 中的 Page
+
+在继续深入讨论 `usertrap` 的 Page Fault 处理逻辑之前，我们首先需要分析 `uvmunmap` 函数的 Page Fault 。
+
+```c
+// kernel/vm.c
+...
+// Remove npages of mappings starting from va. va must be
+// page-aligned. The mappings must exist.
+// Optionally free the physical memory.
+void
+uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
+{
+  uint64 a;
+  pte_t *pte;
+
+  if((va % PGSIZE) != 0)
+    panic("uvmunmap: not aligned");
+
+  for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
+    if((pte = walk(pagetable, a, 0)) == 0)
+      panic("uvmunmap: walk");
+    if((*pte & PTE_V) == 0)
+      panic("uvmunmap: not mapped");
+    if(PTE_FLAGS(*pte) == PTE_V)
+      panic("uvmunmap: not a leaf");
+    if(do_free){
+      uint64 pa = PTE2PA(*pte);
+      kfree((void*)pa);
+    }
+    *pte = 0;
+  }
+}
+...
+```
+
+### `uvmunmap` 函数的修改分析
+
+原始的 `uvmunmap` 函数在发现某个页表项（PTE）的 `V` 标志位（表示页面有效）为 0 时，会直接 panic，表示这是一个错误的状态。这样的设计在传统的 `XV6` 环境中是合理的，因为默认情况下，所有用户进程的内存都应该是映射过的。未映射的内存被访问到会引发错误，因此直接 panic 是一种防御性编程的策略。
+
+```c
+if((*pte & PTE_V) == 0)
+  panic("uvmunmap: not mapped");
+```
+
+然而，随着我们引入 Lazy Allocation 的概念，情况发生了变化。
+
+当启用了 Lazy Allocation 时，用户进程请求的某些内存区域可能已经被记录在进程的 `sz`（大小）字段中，但并没有实际分配物理内存。这就意味着，有些页表项在逻辑上是属于进程的地址空间的，但因为它们从未被访问过，所以它们没有映射到物理内存。此时，如果 `uvmunmap` 函数仍然坚持要求所有 PTE 都必须是有效的，那就会导致不必要的 panic。
+
+解决方案是**直接跳过**这些未映射的页表项，因为这些页表项本来就没有物理内存与之关联，也就不存在实际的内存释放问题。在 Lazy Allocation 中，我们有意让一些内存页面在最初不进行映射，直到真正访问它们时才分配物理内存。因此，跳过这些未映射的页面是合乎逻辑的行为。这正是 `continue` 语句的作用。
+
+```c
+if((*pte & PTE_V) == 0)
+  continue;
+```
+
+### 重编译和运行
+
+在做了上述修改后，我们重新编译 XV6，并运行 `echo hi` 命令。尽管有两个 Page Fault 被触发，但由于我们已经在代码中处理了这些情况，最终程序成功执行了 `echo hi`，这标志着 Lazy Allocation 的基本框架已经搭建起来了。
+
+![image-20240820205301370]({{ site.baseurl }}/docs/assets/image-20240820205301370.png)
+
+随着 Lazy Allocation 的引入，XV6 的内存管理机制变得更加复杂，这对系统的其他部分也提出了更高的要求。特别是我们需要考虑如何在缩小用户进程的地址空间时，安全地处理这些未映射的页面，避免可能出现的内存泄露或其他问题。
+
+通过这些改动，我们已经在 XV6 中实现了一个基础的 Lazy Allocation 机制。这不仅使得内存管理更加高效，而且为后续的实验打下了基础。
