@@ -858,3 +858,13 @@ release(struct spinlock *lk)
         async>
 </script>
 </div>
+jtd.setTheme = function (theme) {
+  // 找到当前的样式表
+  var cssFile = document.querySelector('[rel="stylesheet"]');
+
+  // 修改样式表的 href
+  cssFile.setAttribute('href', '/assets/css/just-the-docs-' + theme + '.css');
+
+  // 将当前的主题样式表移到 <head> 的最后
+  document.head.appendChild(cssFile);
+}
