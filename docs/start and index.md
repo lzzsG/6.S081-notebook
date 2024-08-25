@@ -45,22 +45,3 @@ permalink: /
 | Lecture 23 - RCU                                             | Lecture 23 - 读-复制-更新（RCU）        |
 | Lecture 24 - Final Q&A lecture                               | Lecture 24 - 最终问答课                 |
 
-<!-- giscus -->
-
-<div class="giscus">
-	<script src="https://giscus.app/client.js"
-        data-repo="lzzsG/6.S081-notebook"
-        data-repo-id="R_kgDOMi4yhA"
-        data-category="Announcements"
-        data-category-id="DIC_kwDOMi4yhM4Ch1-W"
-        data-mapping="pathname"
-        data-strict="0"
-        data-reactions-enabled="1"
-        data-emit-metadata="0"
-        data-input-position="bottom"
-        data-theme="dark_protanopia"
-        data-lang="zh-CN"
-        crossorigin="anonymous"
-        async>
-	</script>
-</div>

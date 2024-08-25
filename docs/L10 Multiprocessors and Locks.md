@@ -836,35 +836,3 @@ release(struct spinlock *lk)
 这节课为我们打下了关于锁和并发控制的基础，并为后续更高级的并发编程概念（如无锁编程）做好了准备。在接下来的课程中，我们将继续深入探讨这些主题，理解如何在实际操作系统中有效地管理并发操作。
 
 
-
-
-
-<!-- giscus -->
-
-<div class="giscus">
-<script src="https://giscus.app/client.js"
-        data-repo="lzzsG/6.S081-notebook"
-        data-repo-id="R_kgDOMi4yhA"
-        data-category="Announcements"
-        data-category-id="DIC_kwDOMi4yhM4Ch1-W"
-        data-mapping="pathname"
-        data-strict="0"
-        data-reactions-enabled="1"
-        data-emit-metadata="0"
-        data-input-position="bottom"
-        data-theme="dark_protanopia"
-        data-lang="zh-CN"
-        crossorigin="anonymous"
-        async>
-</script>
-</div>
-jtd.setTheme = function (theme) {
-  // 找到当前的样式表
-  var cssFile = document.querySelector('[rel="stylesheet"]');
-
-  // 修改样式表的 href
-  cssFile.setAttribute('href', '/assets/css/just-the-docs-' + theme + '.css');
-
-  // 将当前的主题样式表移到 <head> 的最后
-  document.head.appendChild(cssFile);
-}
