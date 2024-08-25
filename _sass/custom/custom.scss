@@ -1,5 +1,13 @@
 @import "./color_schemes/dark";
 
+.giscus iframe {
+    border: none;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+}
+
 .highlight,
 .highlight .highlight {
     background-color: $code-background-color;
@@ -250,13 +258,4 @@
 
 .theme-selector:active {
     background-color: none;
-}
-
-
-.giscus iframe {
-    border: none !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0;
-    padding: 0;
 }
