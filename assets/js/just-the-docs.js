@@ -468,10 +468,11 @@
     var cssFile = document.querySelector('[rel="stylesheet"]');
 
     // 修改样式表的 href
-    cssFile.setAttribute('href', 'assets/css/just-the-docs-' + theme + '.css');
+    cssFile.setAttribute('href', '/assets/css/just-the-docs-' + theme + '.css');
 
     // 将当前的主题样式表移到 <head> 的最后
     document.head.appendChild(cssFile);
+
   }
 
   // Note: pathname can have a trailing slash on a local jekyll server
