@@ -96,7 +96,9 @@
 
   function initSearch() {
     var request = new XMLHttpRequest();
-    request.open('GET', '/assets/js/search-data.json', true);
+    var baseurl = window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost" ? "" : "/6.S081-notebook";
+    request.open('GET', baseurl + '/assets/js/search-data.json', true);
+
 
     request.onload = function () {
       if (request.status >= 200 && request.status < 400) {
