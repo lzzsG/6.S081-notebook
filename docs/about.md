@@ -97,6 +97,15 @@ endmodule
 
 `module mkExample(Example);`{:.language-bluespec .highlight}
 
+
+
+<div style="background-color: #9f9f9f;padding: 20px; width: 100%;">
+  <h2 style="font-size: 24px; margin: 0; color: #000;">Your Title Here</h2>
+  <p style="font-size: 18px; color: #555; margin-top: 10px;">
+    This is the content of your card. You can place any text or HTML elements here. The card is full-width, has a gray background, and uses larger fonts.
+  </p>
+</div>
+
 ---
 <button class="btn js-toggle-dark-mode">Preview dark color scheme</button>
 
