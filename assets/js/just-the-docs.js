@@ -556,6 +556,7 @@
     if (!window.navInitialized) {
       console.log("DOMContentLoaded event fired");
       initNav();
+      initSearch();
       window.navInitialized = true; // 标记 nav 已初始化
     }
   });
@@ -564,7 +565,7 @@
   jtd.onReady(function () {
     console.log("DOMContentLoaded event fired");
 
-    initSearch();
+
     activateNav();
     scrollNav();
   });
