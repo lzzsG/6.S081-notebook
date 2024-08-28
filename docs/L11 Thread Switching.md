@@ -1083,7 +1083,171 @@ scheduler(void)
 
 通过这些分析，我们进一步理解了XV6中`swthc`函数的角色和线程切换的机制。这些机制确保了操作系统能够在多任务环境中高效而稳定地调度和管理线程。
 
+## Linux中的多线程实现和调度机制
 
+### 1. Linux中的线程与进程的关系
+
+在Linux中，线程与进程的关系相对特殊。通常我们认为线程是一个轻量级的进程，它们之间共享同一个地址空间。实际上，在Linux内核中，线程被实现为与进程几乎等价的实体，这意味着每个线程在系统内核中看起来像是一个独立的进程。
+
+- **共享内存**：多个线程共享相同的虚拟地址空间，这包括代码段、全局数据段、堆和共享库。它们可以同时访问和修改同一块内存，这是多线程的核心特性之一。
+- **独立调度**：虽然多个线程共享相同的地址空间，但在内核的调度器眼中，每个线程依然是独立的调度实体。内核将这些线程视为独立的任务（task），并且可以将它们调度到不同的CPU核上执行。
+
+### 2. 线程调度与CPU绑定
+
+Linux调度器在多核环境下的工作方式类似于在单核环境下的进程调度。当多个线程存在时，调度器会尝试将它们分配到不同的CPU核上，以充分利用系统的并行处理能力。调度器的主要任务是平衡CPU负载，并确保各个线程在系统资源使用上的公平性。
+
+- **CPU绑定（CPU Affinity）**：用户可以通过设置线程的CPU亲和性（affinity）来将线程绑定到特定的CPU核上，这样线程只能在指定的核上运行。尽管如此，通常情况下，这种做法并不常见，除非在一些特定的实时系统或性能优化场景下。
+
+### 3. 进程的Page Table与线程的关系
+
+关于页表（page table），它是操作系统用来实现虚拟内存的一个关键数据结构，它映射了虚拟地址到物理地址。在多线程环境下，线程共享进程的虚拟地址空间，因此它们通常共享相同的页表。
+
+- **共享Page Table**：在大多数情况下，一个进程的多个线程会共享同一个页表，因为它们共享同一个地址空间。这意味着它们对内存的访问权限和方式都是一致的。
+- **独立Page Table的可能性**：虽然多个线程共享相同的虚拟地址空间，但为了支持特定的功能或优化，一些操作系统实现可能会为不同线程分配独立的页表，但这些页表的内容会保持一致。这种设计通常用于处理特定的安全或性能问题。
+
+### 4. 多核环境下的线程管理
+
+在一个多核处理器的环境中，Linux会尝试将任务分配到多个CPU核上以最大化并行处理能力。对于多线程应用，内核会将线程尽量分配到不同的核上，这样可以确保在多核系统上线程可以真正并行执行，而不仅仅是在一个CPU核上轮流切换。
+
+- **多线程的优点**：通过将多个线程分配到不同的核上，系统可以实现更高的吞吐量和更低的延迟。
+- **线程切换的开销**：线程切换的开销包括上下文切换、缓存失效（cache invalidation）等。但因为线程共享相同的地址空间，所以相比于进程切换，线程切换的开销相对较小。
+
+## 线程第一次调用`swtch`函数
+
+### 1. 线程第一次调用`swtch`的背景
+
+在操作系统中，`swtch`函数用于在两个线程之间切换上下文。线程上下文包括寄存器状态、程序计数器、栈指针等。每个线程需要保存自己的上下文以便在切换回来时能够继续执行。
+
+**问题**：当一个线程第一次调用`swtch`时，它还没有之前的上下文记录，因为它之前没有运行过。所以需要预先伪造一个“另一个线程”的上下文，以便在第一次调用`swtch`时有一个切换目标。
+
+### 2. `allocproc`函数的作用
+
+在XV6中，`allocproc`函数用于创建和初始化新进程。这个函数不仅分配了进程的结构体`proc`，还设置了进程的上下文，这样可以保证在第一次调用`swtch`时有一个有效的切换目标。
+
+```c
+// kernel/proc.c allocproc()
+
+// 在进程表中寻找一个状态为 UNUSED（未使用）的进程。
+// 如果找到，则初始化其在内核中运行所需的状态，
+// 并在返回时保持 p->lock 锁住。
+// 如果没有可用的进程，或者内存分配失败，则返回 0。
+static struct proc*
+allocproc(void)
+{
+  struct proc *p;
+
+  // 遍历进程表，寻找状态为 UNUSED 的进程条目
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);  // 获取进程的锁
+    if(p->state == UNUSED) {  // 如果进程状态为 UNUSED
+      goto found;  // 跳转到 found 标签，准备初始化进程
+    } else {
+      release(&p->lock);  // 否则释放锁
+    }
+  }
+  return 0;  // 如果未找到 UNUSED 的进程，返回 0
+
+found:
+  p->pid = allocpid();  // 为进程分配一个唯一的 PID
+  p->state = USED;  // 将进程状态设置为 USED，表示已被使用
+
+  // 分配一个 trapframe 页。
+  if((p->trapframe = (struct trapframe *)kalloc()) == 0){
+    freeproc(p);  // 如果分配失败，释放进程并返回 0
+    release(&p->lock);
+    return 0;
+  }
+
+  // 创建一个空的用户页表。
+  p->pagetable = proc_pagetable(p);
+  if(p->pagetable == 0){
+    freeproc(p);  // 如果页表分配失败，释放进程并返回 0
+    release(&p->lock);
+    return 0;
+  }
+
+  // 设置新的上下文，以便在 forkret 函数开始执行时返回用户空间。
+  memset(&p->context, 0, sizeof(p->context));  // 清空上下文结构体
+  p->context.ra = (uint64)forkret;  // 设置返回地址为 forkret 函数
+  p->context.sp = p->kstack + PGSIZE;  // 设置栈指针指向内核栈顶
+
+  return p;  // 返回已初始化的进程结构体指针
+}
+
+```
+
+- `p->context.ra` 被设置为`forkret`函数的地址：这意味着当`swtch`函数切换到这个新线程时，程序计数器会跳到`forkret`函数开始执行，就像是`forkret`刚刚调用了`swtch`并且返回了一样。
+- `p->context.sp` 被设置为线程的内核栈的顶端：这是为了确保新线程有一个独立的栈空间进行执行。
+
+### 3. `forkret`函数的工作
+
+`forkret`函数是在新线程第一次调度时执行的，它完成了一些必要的初始化工作，并最终切换到用户空间去执行用户程序。
+
+```c
+// kernel/proc.c
+
+// 当一个通过 fork 创建的子进程第一次被调度器调度时，
+// 将通过 swtch 切换到 forkret 函数开始执行。
+void forkret(void) {
+  static int first = 1;  // 用于标记是否是第一次调用 forkret
+
+  // 此时调度器仍持有 p->lock 锁。
+  release(&myproc()->lock);  // 释放当前进程的锁
+
+  // 如果是第一次调用 forkret，执行文件系统初始化。
+  if (first) {
+    fsinit(ROOTDEV);  // 初始化文件系统
+    first = 0;  // 将 first 置为 0，确保文件系统只初始化一次
+    __sync_synchronize();  // 保证对 first 的修改对所有 CPU 核心可见
+  }
+
+  // 切换到用户空间并开始执行用户程序。
+  usertrapret();  // 从陷阱返回，恢复用户态上下文并跳转到用户程序
+}
+```
+
+- **释放调度器锁**：`forkret`函数首先释放了调度器在分配进程时获得的锁，以便其他进程可以被调度。
+- **文件系统初始化**：`fsinit(ROOTDEV)`在第一次调用`forkret`时被执行，它初始化了文件系统。这一步需要在进程上下文中完成，因为文件系统操作可能涉及I/O等待，而这些操作只能在进程上下文中进行。
+- **用户空间切换**：`usertrapret()`函数将控制权交还给用户程序，开始执行用户代码。
+
+### 4. `trapframe`的初始化
+
+在XV6中，`trapframe`保存了从用户空间到内核空间的切换过程中需要保存的上下文信息。在初始化第一个用户进程时，`userinit`函数设置了`trapframe`的初始状态。
+
+```c
+// Set up first user process.
+void
+userinit(void)
+{
+  struct proc *p;
+
+  p = allocproc();
+  initproc = p;
+  
+  // allocate one user page and copy initcode's instructions
+  // and data into it.
+  uvmfirst(p->pagetable, initcode, sizeof(initcode));
+  p->sz = PGSIZE;
+
+  // prepare for the very first "return" from kernel to user.
+  p->trapframe->epc = 0;      // user program counter
+  p->trapframe->sp = PGSIZE;  // user stack pointer
+
+  safestrcpy(p->name, "initcode", sizeof(p->name));
+  p->cwd = namei("/");
+
+  p->state = RUNNABLE;
+
+  release(&p->lock);
+}
+```
+
+- **程序计数器（epc）**：`p->trapframe->epc = 0;` 程序计数器初始化为0，表示用户程序从头开始执行。
+- **栈指针（sp）**：` p->trapframe->sp = PGSIZE; ` 栈指针指向用户栈的顶端，这样用户程序可以正常使用栈空间。
+
+### 5. `forkret`中的`first`变量
+
+在`forkret`中，`if (first)`的条件判断是为了确保文件系统初始化只在第一次调用`forkret`时执行。初始化文件系统是一个需要等待I/O操作的过程，所以必须在进程上下文中进行。这也是为什么文件系统初始化被放在`forkret`中进行，而不是在系统启动时立即进行。
 
 ---
 
@@ -1202,7 +1366,7 @@ scheduler(void)
 
 - **进入中断处理**：
   1. 用户态：`user code`（定时器中断触发）
-  2. 内核态：uservec -> `usertrap -> devintr -> clockintr -> usertrap -> yield -> sched -> swtch`
+  2. 内核态：`uservec -> usertrap -> devintr -> clockintr -> usertrap -> yield -> sched -> swtch`
 
 - **挂起和上下文切换**：
   1. 调度器：`swtch -> scheduler (choose another process) -> swtch`
