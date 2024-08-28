@@ -20,15 +20,22 @@
   }
 
   // Show/hide mobile menu
-
   function initNav() {
+    // 打印测试: 检查是否进入 initNav 函数
+    console.log("initNav function called");
+
+    // 点击事件监听
     jtd.addEvent(document, 'click', function (e) {
       var target = e.target;
+      console.log("Document clicked, target:", target);
+
       while (target && !(target.classList && target.classList.contains('nav-list-expander'))) {
         target = target.parentNode;
       }
+
       if (target) {
         e.preventDefault();
+        console.log("Menu item expanded:", target);
         target.ariaPressed = target.parentNode.classList.toggle('active');
       }
     });
@@ -37,22 +44,34 @@
     const mainHeader = document.getElementById('main-header');
     const menuButton = document.getElementById('menu-button');
 
+    // 打印测试: 检查元素是否存在
+    console.log("siteNav:", siteNav);
+    console.log("mainHeader:", mainHeader);
+    console.log("menuButton:", menuButton);
+
     disableHeadStyleSheets();
 
+    // 菜单按钮的点击事件监听
     jtd.addEvent(menuButton, 'click', function (e) {
       e.preventDefault();
+      e.stopPropagation();  // 阻止事件冒泡
+      console.log("Menu button clicked");
 
       if (menuButton.classList.toggle('nav-open')) {
+        console.log("Menu opened");
         siteNav.classList.add('nav-open');
         mainHeader.classList.add('nav-open');
         menuButton.ariaPressed = true;
       } else {
+        console.log("Menu closed");
         siteNav.classList.remove('nav-open');
         mainHeader.classList.remove('nav-open');
         menuButton.ariaPressed = false;
       }
     });
   }
+
+
 
   // The <head> element is assumed to include the following stylesheets:
   // - a <link> to /assets/css/just-the-docs-head-nav.css,
@@ -533,9 +552,18 @@
   }
 
   // Document ready
+  document.addEventListener('DOMContentLoaded', function () {
+    if (!window.navInitialized) {
+      console.log("DOMContentLoaded event fired");
+      initNav();
+      window.navInitialized = true; // 标记 nav 已初始化
+    }
+  });
+
 
   jtd.onReady(function () {
-    initNav();
+    console.log("DOMContentLoaded event fired");
+
     initSearch();
     activateNav();
     scrollNav();
