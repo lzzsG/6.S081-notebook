@@ -2,6 +2,7 @@
 layout: page
 title: L01 Introduction and Examples
 permalink: /L01/
+description: "欢迎来到6.S081 — 操作系统课程，本节是 Introduction and Examples。"
 nav_order: 1
 
 ---

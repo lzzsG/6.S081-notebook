@@ -2,6 +2,7 @@
 layout: page
 title: L06 Isolation & System Call Entry/Exit
 permalink: /L06
+description: "Isolation & System Call Entry/Exit"
 nav_order: 6
 
 

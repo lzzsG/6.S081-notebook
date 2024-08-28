@@ -2,6 +2,7 @@
 layout: page
 title: L05 RISC-V Calling Convention and Stack Frames
 permalink: /L05
+description: "在今天的课程中，我们将深入探讨C语言如何转换为汇编语言，并进一步理解汇编语言如何与处理器交互，尤其是在RISC-V架构下的实现。尽管这一过程对页表管理并非至关重要，但它对理解trap机制、trapframe以及栈操作至关重要，尤其是在即将进行的traps lab实验中，这些内容会频繁涉及。"
 nav_order: 5
 
 
@@ -845,7 +846,7 @@ void demo4() {
 >
 >    ```
 >    Hardware watchpoint 2: x
->    
+>          
 >    Old value = 0
 >    New value = 1
 >    test_function () at example.c:6

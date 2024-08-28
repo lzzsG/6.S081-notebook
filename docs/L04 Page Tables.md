@@ -2,6 +2,7 @@
 layout: page
 title: L04 Page Tables
 permalink: /L04/
+description: "今天的主题是虚拟内存，特别是页表（page tables）的概念。我们将在本节课中详细讨论虚拟内存的工作机制，并且在后续课程中继续探讨虚拟内存的其他相关内容。"
 nav_order: 4
 
 

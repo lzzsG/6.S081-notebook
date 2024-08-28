@@ -2,6 +2,7 @@
 layout: page
 title: L08 Page Faults
 permalink: /L08
+description: "今天的课程主要讨论 Page Fault 及其相关的虚拟内存功能。这些功能在现代操作系统中非常重要，典型的功能包括：Lazy Allocation（惰性分配）：下一个实验室的内容。Copy-On-Write Fork（写时复制的 Fork）。Demand Paging（按需分页）。Memory Mapped Files（内存映射文件）。"
 nav_order: 8
 
 
