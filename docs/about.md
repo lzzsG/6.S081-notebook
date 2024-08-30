@@ -106,6 +106,12 @@ endmodule
   </p>
 </div>
 
+
+<div style="color: red;">
+  这是一个红色字体的div块内容。
+</div>
+
+
 ---
 <button class="btn js-toggle-dark-mode">Preview dark color scheme</button>
 
