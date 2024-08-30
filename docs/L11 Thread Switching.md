@@ -1505,7 +1505,7 @@ userinit(void)
    - 调度器将选定的进程状态设置为`RUNNING`，并通过`swtch`切换到该进程的上下文。
 9. **恢复挂起的进程**：
    - `swtch`函数在恢复进程的上下文后，从上次挂起的位置继续执行进程的代码。
-   - 进程是由于定时器中断而被挂起的，恢复后的进程将从`usertrap`函数的上下文中继续执行，最终通过`usertrapret`返回到用户态。
+   - 进程是由于定时器中断而被挂起的，恢复后的进程从`sched``yeild`返回从`usertrap`函数的上下文中继续执行，最终通过`usertrapret`返回到用户态。
    - `usertrapret`通过调用`trampoline.S`中的`userret`，使用`sret`指令切换回用户态，使进程继续执行用户代码。
 
 ### **函数调用链**
@@ -1519,60 +1519,85 @@ userinit(void)
 
 - **恢复挂起进程**：
   1. 调度器：`swtch (restore context)`
-  2. 继续执行：`sched ->  usertrapret -> userret -> user code`
+  2. 继续执行：`sched -> yield -> usertrap -> usertrapret -> userret -> user code`
 
 ---
 
-## 系统调用（如 `sleep`）挂起引发的线程切换全流程
+> 下面部分可以学完L13再回来看
+>
+> ###  `sys_sleep`函数
+>
+> ```c
+> uint64
+> sys_sleep(void)
+> {
+>   int n;
+>   uint ticks0;
+> 
+>   argint(0, &n);  // 从系统调用参数中获取休眠时间
+>   if(n < 0)
+>     n = 0;
+>   acquire(&tickslock);  // 获取系统时钟的锁
+>   ticks0 = ticks;       // 记录当前的tick数
+>   while(ticks - ticks0 < n){
+>     if(killed(myproc())){
+>       release(&tickslock);  // 如果进程被杀死，释放锁并返回-1
+>       return -1;
+>     }
+>     sleep(&ticks, &tickslock);  // 调用sleep函数进行休眠
+>   }
+>   release(&tickslock);  // 休眠结束后释放锁
+>   return 0;
+> }
+> ```
+>
+> **功能**：`sys_sleep`是一个系统调用处理函数，用于将用户进程休眠指定的时间（以tick为单位）。
+>
+> **实现**：
+>
+> - `sys_sleep`首先从系统调用参数中获取要休眠的时间`n`。
+> - 然后它获取`tickslock`（保护系统时钟`ticks`的锁），记录当前的系统时间`ticks0`。
+> - 进入一个循环，直到系统时间增加了指定的`n` tick数。
+> - 在循环中，它调用`sleep(&ticks, &tickslock)`，将当前进程放到`ticks`通道上等待。
+> - 当系统时间达到指定的tick数，进程醒来并释放`tickslock`。
 
-我们提到了**定时器中断之外的切换场景**，系统调用（如`sleep`）也可能触发线程切换。在XV6操作系统中，系统调用（如`sleep`）引发的线程切换涉及多个步骤。以下是详细的全流程描述，包括从用户进程发起系统调用，到内核进行调度的全过程。
+## 系统调用挂起（如 `sys_sleep`通过`sleep`）引发的线程切换全流程
+
+我们提到了**定时器中断之外的切换场景**，系统调用（如`sys_sleep`）也可能触发线程切换。在XV6操作系统中，系统调用（如`sys_sleep`）引发的线程切换涉及多个步骤。以下是详细的全流程描述，包括从用户进程发起系统调用，到内核进行调度的全过程。
 
 ### **流程详解**
 
 1. **用户进程发起系统调用**：
 
-   - 用户进程在用户态执行代码时，遇到需要执行系统调用的情况（如`sleep`）。
+   - 用户进程在用户态执行代码时，遇到需要执行系统调用的情况（如`sys_sleep`）。
    - 用户进程通过`ecall`指令发起系统调用。`ecall`是RISC-V架构中的指令，用于从用户态进入内核态。
-
 2. **进入内核态：保存用户态寄存器并跳转到`syscall`函数**：
 
    - `ecall`指令触发软中断，处理器切换到内核态。
    - 处理器首先跳转到`trampoline.S`中的`uservec`代码段，`uservec`负责将当前用户态的寄存器状态保存到进程的`trapframe`中。
    - 然后，`uservec`跳转到`usertrap`函数，`usertrap`函数识别出这是一个系统调用，并调用`syscall`函数。
-
-3. **执行具体的系统调用处理（如`sleep`）**：
-   - `syscall`函数根据`trapframe`中存储的系统调用编号，调用相应的内核函数（如`sleep`）。
+3. **执行具体的系统调用处理（如`sys_sleep`）**：
+   - `syscall`函数根据`trapframe`中存储的系统调用编号，调用相应的内核函数（如`sys_sleep`）。
    - 在这个例子中，`sys_sleep`函数根据传入的参数（如休眠时间）执行休眠操作，并判断进程是否需要等待。
-
 4. **进程进入等待状态**：
-   - `sleep`函数判断当前进程需要等待指定时间后再继续执行，因此将当前进程的状态设置为`SLEEPING`。
-   - 为了让其他进程获得CPU，`sleep`函数会调用`yield`函数来出让CPU。
-
-5. **`yield`函数的执行**：
-   - 在`yield`函数中，进程首先获取自身的锁（`p->lock`），以确保在切换过程中进程状态不会被其他线程或中断干扰。
-   - 将当前进程的状态从`SLEEPING`或`RUNNING`设置为`RUNNABLE`（视情况而定）。
-   - 然后调用`sched`函数来进行调度。
-
+   - 调用`sleep`函数判断当前进程需要等待指定时间后再继续执行，因此将当前进程的状态设置为`SLEEPING`。
+   - 为了让其他进程获得CPU，`sleep`函数会调用`sched`函数来来进行调度。
 6. **`sched`函数的执行**：
    - `sched`函数要求进程锁已经被持有，它检查锁的持有状态以防止不一致。
    - `sched`函数调用`swtch`函数，将当前进程的上下文（寄存器状态等）保存到该进程的`context`结构中。
    - `swtch`函数将CPU控制权切换到调度器线程，进程的执行被挂起。
-
 7. **`swtch`函数：上下文切换**：
    - `swtch`函数保存当前进程的寄存器状态，并恢复调度器线程的寄存器状态。
    - 调度器线程恢复执行，选择其他可运行的进程。
-
 8. **调度器线程选择下一个进程**：
 
    - 调度器线程通过`scheduler`函数选择下一个可运行的进程，并使用`swtch`切换到该进程。
    - 如果找到的是另一个可运行的进程，调度器线程会将其状态从`RUNNABLE`设置为`RUNNING`，并将控制权交给它。
-
 9. **恢复挂起的进程并继续执行**：
 
    - 当调度器线程再次选择之前被`sleep`挂起的进程时，它通过`swtch`恢复该进程的上下文。
-   - 恢复后的进程从被挂起的位置继续执行。这可能是在`syscall`或`usertrap`函数中，具体取决于进程被挂起的原因。
+   - 恢复后的进程从被挂起的位置继续执行。
    - 系统调用处理完毕后，`syscall`函数将返回值写入`trapframe`中的`a0`寄存器中。
-
 10. **返回用户态**：
 
     - `syscall`函数完成后，`usertrap`函数调用`usertrapret`，准备返回到用户态。
@@ -1583,12 +1608,12 @@ userinit(void)
 
 - **进入系统调用**：
   1. 用户态：`user code (ecall)`
-  2. 内核态：`uservec -> usertrap -> syscall -> sys_sleep -> yield -> sched -> swtch`
+  2. 内核态：`uservec -> usertrap -> syscall -> sys_sleep -> sleep -> sched -> swtch`
 - **挂起和上下文切换**：
   1. 调度器线程：`swtch -> scheduler (choose another process) -> swtch`
 - **恢复挂起进程**：
   1. 调度器线程：`swtch (restore context)`
-  2. 继续执行：`sched -> sys_sleep -> syscall -> usertrapret -> userret -> user code`
+  2. 继续执行：`sched -> sleep -> sys_sleep -> syscall -> usertrap -> usertrapret -> userret -> user code`
 
 ---
 
