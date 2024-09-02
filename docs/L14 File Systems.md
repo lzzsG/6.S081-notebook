@@ -789,7 +789,7 @@ ialloc(uint dev, short type)
 
 - **对应的代码**：`dirlink(dp, name, ip->inum);`
 
-  - `dirlink` 函数中`if(writei(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))``{:.language-c .highlight}
+  - `dirlink` 函数中`if(writei(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))`
 
 - **操作**：将文件 `x` 的目录项写入根目录的第一个数据块（block 46）。这个目录项包含了文件名 `x` 和新分配的 `inode` 编号。
 
