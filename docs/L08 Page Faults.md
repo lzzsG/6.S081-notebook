@@ -1,8 +1,8 @@
 ---
 layout: page
 title: L08 Page Faults
-permalink: /L08
-description: "今天的课程主要讨论 Page Fault 及其相关的虚拟内存功能。这些功能在现代操作系统中非常重要，典型的功能包括：Lazy Allocation（惰性分配）：下一个实验室的内容。Copy-On-Write Fork（写时复制的 Fork）。Demand Paging（按需分页）。Memory Mapped Files（内存映射文件）。"
+permalink: /L08-Page-Faults/
+description: "L08 Page Faults. 本节课程主要讨论 Page Fault 及其相关的虚拟内存功能。这些功能在现代操作系统中非常重要，典型的功能包括：Lazy Allocation（惰性分配）：下一个实验室的内容。Copy-On-Write Fork（写时复制的 Fork）。Demand Paging（按需分页）。Memory Mapped Files（内存映射文件）。"
 nav_order: 8
 
 
@@ -249,18 +249,18 @@ uint64 sys_sbrk(void)
 void*
 malloc(uint nbytes)
 {
-    11f8:	7139                	addi	sp,sp,-64
-    11fa:	fc06                	sd	ra,56(sp)
-    11fc:	f822                	sd	s0,48(sp)
-    11fe:	f426                	sd	s1,40(sp)
+    11f8: 7139                 addi sp,sp,-64
+    11fa: fc06                 sd ra,56(sp)
+    11fc: f822                 sd s0,48(sp)
+    11fe: f426                 sd s1,40(sp)
 ...
-    129e:	6398                	ld	a4,0(a5)
-    12a0:	e118                	sd	a4,0(a0)
-    12a2:	bff1                	j	127e <malloc+0x86>
+    129e: 6398                 ld a4,0(a5)
+    12a0: e118                 sd a4,0(a0)
+    12a2: bff1                 j 127e <malloc+0x86>
   hp->s.size = nu;
-    12a4:	01652423          	sw	s6,8(a0)
+    12a4: 01652423           sw s6,8(a0)
   free((void*)(hp + 1));
-    12a8:	0541                	addi	a0,a0,16
+    12a8: 0541                 addi a0,a0,16
 ...
 ```
 
@@ -270,13 +270,13 @@ malloc(uint nbytes)
 
 引发了 `Page Fault` 后，操作系统可以在 `Page Fault` 处理程序中为该地址分配物理内存，并将其映射到进程的地址空间中，然后重新执行导致 `Page Fault` 的指令。这样就可以实现 Lazy Allocation 的机制——内存的实际分配推迟到真正需要的时候，从而有效地利用系统资源。
 
-> > ###  `12a4: sw s6,8(a0)` 
+> > ### `12a4: sw s6,8(a0)`
 > >
 > > 这条指令的作用是将寄存器 `s6` 中的值存储到内存地址 `a0 + 8` 处。这正是 `malloc` 函数中尝试将新分配的内存的大小写入到 `Header` 结构的 `size` 字段中。
 > >
 > > 在此指令之前，`a0` 寄存器中存储的是 `p`，即由 `sbrk` 函数返回的地址。如果 `sbrk` 调用返回了一个尚未实际分配的内存地址（由于我们修改了 `sys_sbrk`，它不会立即分配物理内存），那么当 `malloc` 尝试在 `a0 + 8` 处写入数据时，就会导致 `Page Fault`，因为这部分内存实际上还没有映射到任何物理内存。
 > >
-> > > ### `Header` 
+> > > ### `Header`
 > > >
 > > > `Header` 是在实现 `malloc`（内存分配函数）时，用来管理已分配内存块的一种常见的数据结构。它通常包含了与内存块相关的元数据，如内存块的大小、下一个内存块的指针等。在动态内存分配中，`Header` 结构体被用于链接已分配的内存块和空闲的内存块，形成一个链表，方便内存的管理和回收。
 > > >
@@ -286,7 +286,7 @@ malloc(uint nbytes)
 > > > - **管理空闲链表**：`malloc` 函数在分配内存时，使用 `Header` 结构体来管理可用的空闲内存块。通过检查 `Header` 中的 `size` 字段，`malloc` 可以找到合适大小的空闲块，进行分配。
 > > > - **合并空闲块**：在 `free` 函数中，释放内存后，通过 `Header` 中的链表结构，可以尝试合并相邻的空闲内存块，以减少内存碎片。
 > > >
-> > > ###  `Header`的结构
+> > > ### `Header`的结构
 > > >
 > > > 虽然不同的实现细节可能会有所不同，但典型的 `Header` 结构体可能像这样：
 > > >

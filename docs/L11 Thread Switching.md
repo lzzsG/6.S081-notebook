@@ -4,9 +4,6 @@ title: L11 Thread Switching
 permalink: /L11
 description: "在这节课中，我们将深入探讨线程的概念，以及XV6操作系统如何实现线程切换。线程是现代操作系统中的一个关键组件，它允许计算机在多个任务之间切换，以实现多任务处理和更高的效率。"
 nav_order: 11
-
-
-
 ---
 
 

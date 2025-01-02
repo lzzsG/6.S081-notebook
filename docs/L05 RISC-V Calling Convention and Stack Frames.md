@@ -1,8 +1,8 @@
 ---
 layout: page
 title: L05 RISC-V Calling Convention and Stack Frames
-permalink: /L05
-description: "在今天的课程中，我们将深入探讨C语言如何转换为汇编语言，并进一步理解汇编语言如何与处理器交互，尤其是在RISC-V架构下的实现。尽管这一过程对页表管理并非至关重要，但它对理解trap机制、trapframe以及栈操作至关重要，尤其是在即将进行的traps lab实验中，这些内容会频繁涉及。"
+permalink: /L05-RISC-V-Calling-Convention-and-Stack-Frames/
+description: "L05 RISC-V Calling Convention and Stack Frames. 本节课程将深入探讨C语言如何转换为汇编语言，并进一步理解汇编语言如何与处理器交互，尤其是在RISC-V架构下的实现。尽管这一过程对页表管理并非至关重要，但它对理解trap机制、trapframe以及栈操作至关重要，尤其是在即将进行的traps lab实验中，这些内容会频繁涉及。"
 nav_order: 5
 
 
@@ -121,7 +121,7 @@ RISC-V处理器是当前广泛使用的开源处理器架构之一。它的指�
 
 ### 向后兼容性与指令集规模
 
->  **提问：为什么x86会有15000条指令？**  
+> **提问：为什么x86会有15000条指令？**  
 
 这主要是为了保证向后兼容性的重要性，以及满足特定应用的需求。x86指令集的庞大部分是由于历史遗留问题。Intel希望确保其处理器能够支持早期的所有软件，这就要求它的指令集不能抛弃旧的指令。此外，x86指令集还包括了很多专用的命令指令（cmd），这些指令通常是为特定任务设计的。虽然x86拥有如此多的指令，但大多数程序员实际上只会使用其中的一小部分，大部分指令仅仅是为了特定用途或者兼容性存在的。
 
@@ -209,7 +209,7 @@ RISC-V的兴起体现了精简指令集架构的优势，尤其是在保持指�
 > >
 > > ### 各种类型的中间文件的含义和作用
 > >
-> > 1. **C Source Code (.c files)**: 
+> > 1. **C Source Code (.c files)**:
 > >    - **作用**: 包含了程序的核心逻辑，使用高级结构和语法编写。
 > >    - **过程**: 这是程序的起点，通过编译器被处理并转换为汇编代码。
 > >
@@ -294,7 +294,7 @@ RISC-V的兴起体现了精简指令集架构的优势，尤其是在保持指�
 > >
 > > 4. **C代码：** `acc += i;`
 > >
-> >    - **汇编代码：** 
+> >    - **汇编代码：**
 > >
 > >      ```
 > >      loop:
@@ -927,7 +927,7 @@ void printPerson(struct Person *p) {
 
 1. **检查当前栈帧：**  
    在 GDB 中输入 `info frame` 可以查看当前函数的栈帧信息，包括函数的参数和局部变量。例如，打印参数 `p` 可以看到它是一个指向 `Person` 结构体的指针。
-   
+
    ```
    (gdb) info frame
    Stack level 0, frame at 0x7fffffffdbb0:
@@ -939,7 +939,7 @@ void printPerson(struct Person *p) {
 
 2. **打印 `struct` 的内容：**  
    在 GDB 中，使用 `print *p` 可以查看 `Person` 结构体的具体内容。例如：
-   
+
    ```
    (gdb) print *p
    $1 = {age = 25, height = 175.5, name = "John Doe"}

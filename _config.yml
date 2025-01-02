@@ -19,20 +19,22 @@
 # in the templates via {{ site.myvariable }}.
 
 title: "Lzzs 6.S081 Notebook"
-email: lizizhi122@gmail.com
+email: lzzs122@foxmail.com
 description: >- # this means to ignore newlines until "baseurl:"
   Write an awesome description for your new site here. You can edit this
   line in _config.yml. It will appear in your document head meta (for
   Google search results) and in your feed.xml site description.
 baseurl: "" # the subpath of your site, e.g. /blog
 url: "https://lzzs.fun" # the base hostname & protocol for your site, e.g. http://example.com
-twitter_username: jekyllrb
-github_username:  jekyll
+github_username:  LzzsG
+lang: zh-CN
 
 # Build settings
 theme: just-the-docs
 plugins:
   - jekyll-feed
+  - jekyll-sitemap
+  - jekyll-seo-tag
 
 # Exclude from processing.
 # The following items will not be processed, by default.
@@ -94,10 +96,10 @@ search:
 aux_links:
   "Home":
     - "//lzzs.fun"
-  "Blog":
-  - "//lzzs.fun/blog"
+  "Notes":
+    - "//lzzs.fun/notebooks"
   "GitHub":
-  - "//github.com/lzzsG/"
+    - "//github.com/lzzsG/6.S081-notebook"
 
 # Makes Aux links open in a new tab. Default is false
 aux_links_new_tab: false
@@ -120,7 +122,7 @@ last_edit_time_format: "%b %e %Y at %I:%M %p" # uses ruby's time format: https:/
 gh_edit_link: true # show or hide edit this page link
 gh_edit_link_text: "Edit this page on GitHub."
 # 编辑此页面在GitHub
-gh_edit_repository: "https://github.com/lzzsG/just-the-docs-template" # the github URL for your repo
+gh_edit_repository: "https://github.com/lzzsG/6.S081-notebook" # the github URL for your repo
 gh_edit_branch: "main" # the branch that your docs is served from
 # gh_edit_source: docs # the source that your files originate from
 gh_edit_view_mode: "tree" # "tree" or "edit" if you want the user to jump into the editor immediately
